@@ -1,0 +1,6 @@
+SELECT [name]
+      ,[enabled]
+      ,[date_created]
+      ,[date_modified]
+      ,[version_number]
+  FROM [msdb].[dbo].[sysjobs]
