@@ -224,7 +224,6 @@ FOR
 SELECT a.state_desc,a.permission_name, b.name, a.state COLLATE LATIN1_General_CI_AI
 FROM sys.database_permissions a inner join sys.database_principals b
 ON a.grantee_principal_id = b.principal_id 
---WHERE b.principal_id not in (0,1,2) and a.type in ('VW','VWDS') --modified 9/17/2012
 WHERE b.principal_id not in (0,1,2) and a.type not in ('CO') and a.class = 0
                                 
 OPEN _grant_privs FETCH NEXT FROM _grant_privs INTO @PrivState,@PrivType,@PrivGrantee,@PrivWG
@@ -287,14 +286,12 @@ PRINT '-- GRANTS for Object Privileges'
 DECLARE _grant_objprivs
 CURSOR LOCAL FORWARD_ONLY READ_ONLY
 FOR
-SELECT state_desc,permission_name, sys.schemas.name, sys.objects.name,sys.database_principals.name, state COLLATE LATIN1_General_CI_AI
-from sys.database_permissions
-join sys.objects on sys.database_permissions.major_id = 
-sys.objects.object_id
-join sys.schemas on sys.objects.schema_id = sys.schemas.schema_id
-join sys.database_principals on sys.database_permissions.grantee_principal_id = 
-sys.database_principals.principal_id
-where sys.database_principals.name not in ( 'public', 'guest')
+SELECT a.state_desc, a.permission_name, c.name, b.name,e.name, a.state COLLATE LATIN1_General_CI_AI
+from sys.database_permissions a
+join sys.objects b on a.major_id = b.object_id
+join sys.schemas c on b.schema_id = c.schema_id
+join sys.database_principals e on a.grantee_principal_id = e.principal_id
+where e.name not in ( 'public', 'guest')
 
 OPEN _grant_objprivs FETCH NEXT FROM _grant_objprivs INTO @ObjState,@ObjType,@ObjSchema,@ObjName, @ObjGrantee,@ObjWG
 WHILE @@FETCH_STATUS = 0
