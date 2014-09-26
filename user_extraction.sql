@@ -175,22 +175,48 @@ DEALLOCATE _users --cleanup cursor
 --Script CREATE Database Roles for current database
 PRINT ' '
 PRINT '-- CREATE DB ROLES'
+CREATE TABLE ##roles (
+    RoleName nvarchar(max))
+
+DECLARE _users
+CURSOR LOCAL FORWARD_ONLY READ_ONLY
+FOR 
+SELECT DBname
+FROM   ##users a LEFT OUTER JOIN [sys].[database_principals] b
+on a.LoginName = b.[name] COLLATE LATIN1_General_CI_AI 
+where LoginName = @User_Build
+order by DBname
+
+OPEN _users FETCH NEXT FROM _users INTO @DBname
+WHILE @@FETCH_STATUS = 0
+BEGIN
+
+SET @query = N'select b.[NAME] 
+from ' + @DBname + '.[sys].[database_principals] a
+inner join ' + @DBname + '.sys.database_role_members d on  a.principal_id=d.role_principal_id
+INNER JOIN ' + @DBname + '.sys.database_principals  b on d.member_principal_id=b.principal_id
+where    b.name <> ''dbo'' and b.name =  '+ '''' + @User_Build + '''
+and a.type=''R'' and a.is_fixed_role != 1 and b.name not like ''public'''
+						    
+INSERT INTO ##roles Exec (@query)
+
+FETCH NEXT FROM _users INTO @DBname
+END
+CLOSE _users 
+DEALLOCATE _users --cleanup cursor
+
 DECLARE _roles
 CURSOR LOCAL FORWARD_ONLY READ_ONLY 
 FOR
-select b.[NAME] 
-from [sys].[database_principals] a
-inner join sys.database_role_members d
-on  a.principal_id=d.role_principal_id
-INNER JOIN sys.database_principals  b
-on d.member_principal_id=b.principal_id
-where    b.name <> 'dbo'
-and b.name = @User_Build
-and a.type='R' and a.is_fixed_role != 1 and b.name not like 'public'
+SELECT *
+from ##roles
 
 OPEN _roles FETCH NEXT FROM _roles INTO @RoleName
 WHILE @@FETCH_STATUS=0
 BEGIN
+--SET @msgStatement = 'USE [' + @DBname + ']'
+--PRINT @msgStatement
+--PRINT 'GO'
 SET @msgStatement ='if not exists(SELECT 1 from sys.database_principals where type=''R'' and name ='''
 +@RoleName+''' ) '+ CHAR(13) +
 'BEGIN '+ CHAR(13) +
@@ -202,21 +228,49 @@ END
 
 CLOSE _roles
 DEALLOCATE _roles --cleanup cursor
+drop table ##roles
 
 -- Script to Add Role Members to Users for current database
 PRINT ' '
 PRINT '-- ADD ROLE MEMBERS'
+CREATE TABLE ##role_membrs (
+    RoleName nvarchar(max),
+    MemberName nvarchar(max))
+
+DECLARE _users
+CURSOR LOCAL FORWARD_ONLY READ_ONLY
+FOR 
+SELECT DBname
+FROM   ##users a LEFT OUTER JOIN [sys].[database_principals] b
+on a.LoginName = b.[name] COLLATE LATIN1_General_CI_AI 
+where LoginName = @User_Build
+order by DBname
+
+OPEN _users FETCH NEXT FROM _users INTO @DBname
+WHILE @@FETCH_STATUS = 0
+BEGIN
+--SET @msgStatement = 'USE [' + @DBname + ']'
+--PRINT @msgStatement
+--PRINT 'GO'
+SET @query = N'SELECT a.name , b.name 
+from ' + @DBname + '.sys.database_role_members d 
+INNER JOIN ' + @DBname + '.sys.database_principals  a on  d.role_principal_id=a.principal_id 
+INNER JOIN ' + @DBname + '.sys.database_principals  b on d.member_principal_id=b.principal_id
+where    b.name <> ''dbo'' and b.name = '+ '''' + @User_Build + '''
+order by 1,2'
+						    
+INSERT INTO ##role_membrs Exec (@query)
+
+FETCH NEXT FROM _users INTO @DBname
+END
+CLOSE _users 
+DEALLOCATE _users --cleanup cursor
+
 DECLARE _role_members
 CURSOR LOCAL FORWARD_ONLY READ_ONLY
 FOR 
-SELECT a.name , b.name 
-from sys.database_role_members d INNER JOIN sys.database_principals  a
-                                on  d.role_principal_id=a.principal_id 
-                                 INNER JOIN sys.database_principals  b
-                                on d.member_principal_id=b.principal_id
-                                where    b.name <> 'dbo'
-                                and b.name = @User_Build
-                                order by 1,2
+SELECT *
+from ##role_membrs
  
 OPEN _role_members FETCH NEXT FROM _role_members INTO @RoleName, @MemberName
 WHILE @@FETCH_STATUS = 0
@@ -228,19 +282,52 @@ END
 
 CLOSE _role_members 
 DEALLOCATE _role_members --cleanup cursor
+drop table ##role_membrs
 
 -- Script GRANTS for Database Privileges on current database
 PRINT ' '
 PRINT '-- GRANTS for Database Privileges'
-DECLARE _grant_privs
+CREATE TABLE ##grant_privs (
+    PrivState nvarchar(max),
+    PrivType nvarchar(max),
+    PrivGrantee nvarchar (max),
+    PrivWG nvarchar(max))
+
+DECLARE _users
 CURSOR LOCAL FORWARD_ONLY READ_ONLY
 FOR 
-SELECT a.state_desc,a.permission_name, b.name, a.state COLLATE LATIN1_General_CI_AI
-FROM sys.database_permissions a inner join sys.database_principals b
-ON a.grantee_principal_id = b.principal_id 
-WHERE b.principal_id not in (0,1,2) and a.type not in ('CO') and a.class = 0
-and b.name = @User_Build
-                                
+SELECT DBname
+FROM   ##users a LEFT OUTER JOIN [sys].[database_principals] b
+on a.LoginName = b.[name] COLLATE LATIN1_General_CI_AI 
+where LoginName = @User_Build
+order by DBname
+
+OPEN _users FETCH NEXT FROM _users INTO @DBname
+WHILE @@FETCH_STATUS = 0
+BEGIN
+--SET @msgStatement = 'USE [' + @DBname + ']'
+--PRINT @msgStatement
+--PRINT 'GO'
+SET @query = N'SELECT a.state_desc,a.permission_name, b.name, a.state COLLATE LATIN1_General_CI_AI
+FROM ' + @DBname + '.sys.database_permissions a 
+inner join ' + @DBname + '.sys.database_principals b ON a.grantee_principal_id = b.principal_id 
+WHERE b.principal_id not in (0,1,2) and a.type not in (''CO'') and a.class = 0
+and b.name ='+ '''' + @User_Build + ''''
+						    
+INSERT INTO ##grant_privs Exec (@query)
+
+FETCH NEXT FROM _users INTO @DBname
+END
+CLOSE _users 
+DEALLOCATE _users --cleanup cursor
+
+
+DECLARE _grant_privs
+CURSOR LOCAL FORWARD_ONLY READ_ONLY
+FOR
+SELECT *
+from ##grant_privs
+                            
 OPEN _grant_privs FETCH NEXT FROM _grant_privs INTO @PrivState,@PrivType,@PrivGrantee,@PrivWG
 WHILE @@FETCH_STATUS = 0
 BEGIN
@@ -255,6 +342,9 @@ BEGIN
 			SET @PrivWG = ''
 		END
 	END
+--SET @msgStatement = 'USE [' + @DBname + ']'
+--PRINT @msgStatement
+--PRINT 'GO'
 SET @msgStatement = @PrivState +' ' + @PrivType + ' to "' + @PrivGrantee +'" '+@PrivWG
 PRINT @msgStatement
 FETCH NEXT FROM _grant_privs INTO @PrivState,@PrivType,@PrivGrantee,@PrivWG
@@ -262,40 +352,49 @@ END
 
 CLOSE _grant_privs 
 DEALLOCATE _grant_privs --cleanup cursor
+drop table ##grant_privs
                               
 -- Script GRANTS for Schema Privileges on current database
-/*
-DECLARE @User_Build [varchar] (256),
-@query as varchar(2000),
-@dbname as sysname,
-@ObjState [varchar] (256),
-@ObjType [varchar] (256),
-@ObjSchema [varchar] (256),
-@ObjName [varchar] (256),
-@ObjGrantee [varchar] (256),
-@ObjWG [varchar] (256),
-@msgStatement [varchar](8000)
-SET @User_Build = 'ph'
-*/
-
-/*
-CREATE TABLE ##users (
-    LoginName nvarchar(max),
-    DBname nvarchar(max),
-    Username nvarchar(max), 
-    AliasName nvarchar(max))
-INSERT INTO ##users EXEC master..sp_msloginmappings
-*/
-
 PRINT ' '
 PRINT '-- GRANTS for Schema Privileges'
-DECLARE _grant_schprivs
+CREATE TABLE ##grant_sch_users (
+    SchState nvarchar(max),
+    SchType nvarchar(max),
+    SchSchema nvarchar(max), 
+    SchWG nvarchar(max),
+    SchGrantee nvarchar (max))
+
+DECLARE _users
 CURSOR LOCAL FORWARD_ONLY READ_ONLY
 FOR 
-SELECT a.state_desc, permission_name, b.name, a.state, c.name COLLATE LATIN1_General_CI_AI
-FROM sys.database_permissions  a INNER JOIN sys.schemas b
-ON  a.major_id = b.schema_id INNER JOIN sys.database_principals c ON a.grantee_principal_id = c.principal_id
-where c.name = @User_Build
+SELECT DBname
+FROM   ##users a LEFT OUTER JOIN [sys].[database_principals] b
+on a.LoginName = b.[name] COLLATE LATIN1_General_CI_AI 
+where LoginName = @User_Build
+order by DBname
+
+OPEN _users FETCH NEXT FROM _users INTO @DBname
+WHILE @@FETCH_STATUS = 0
+BEGIN
+
+		SET @query = N'SELECT a.state_desc, a.permission_name, b.name, a.state, c.name COLLATE LATIN1_General_CI_AI
+		FROM ' + @DBname + '.sys.database_permissions  a 
+		INNER JOIN ' + @DBname + '.sys.schemas b ON  a.major_id = b.schema_id 
+		INNER JOIN ' + @DBname + '.sys.database_principals c ON a.grantee_principal_id = c.principal_id
+		where b.name = '+ '''' + @User_Build + ''' or c.name  ='+ '''' + @User_Build + ''''
+						    
+		INSERT INTO ##grant_sch_users Exec (@query)
+FETCH NEXT FROM _users INTO @DBname
+END
+CLOSE _users 
+DEALLOCATE _users --cleanup cursor
+
+
+DECLARE _grant_schprivs
+CURSOR LOCAL FORWARD_ONLY READ_ONLY
+FOR
+SELECT *
+from ##grant_sch_users
 
 OPEN _grant_schprivs FETCH NEXT FROM _grant_schprivs INTO @SchState,@SchType,@SchName,@SchWG, @SchGrantee
 WHILE @@FETCH_STATUS = 0
@@ -311,6 +410,9 @@ BEGIN
 			SET @SchWG = ''
 		END
 	END
+--SET @msgStatement = 'USE [' + @DBname + ']'
+--PRINT @msgStatement
+--PRINT 'GO'
 SET @msgStatement = @SchState +' ' + @SchType +' ON SCHEMA::[' + @SchName+ '] TO ' + @SchGrantee + ' ' + @SchWG
 PRINT @msgStatement
 FETCH NEXT FROM _grant_schprivs INTO @SchState,@SchType,@SchName,@SchWG,@SchGrantee
@@ -318,12 +420,13 @@ END
 
 CLOSE _grant_schprivs
 DEALLOCATE _grant_schprivs --cleanup cursor
+drop table ##grant_sch_users
 
 --Script GRANTS for Objects Level Privilegs
 PRINT ' '
 PRINT '-- GRANTS for Object Privileges'
 
-CREATE TABLE ##grant_users (
+CREATE TABLE ##grant_obj_users (
     ObjState nvarchar(max),
     ObjType nvarchar(max),
     ObjSchema nvarchar(max), 
@@ -351,7 +454,7 @@ BEGIN
 		join ' + @DBname + '.sys.database_principals e on a.grantee_principal_id = e.principal_id
 		where e.name = '+ '''' + @User_Build + ''''
     
-		INSERT INTO ##grant_users Exec (@query)
+		INSERT INTO ##grant_obj_users Exec (@query)
 FETCH NEXT FROM _users INTO @DBname
 END
 CLOSE _users 
@@ -361,13 +464,8 @@ DEALLOCATE _users --cleanup cursor
 DECLARE _grant_objprivs
 CURSOR LOCAL FORWARD_ONLY READ_ONLY
 FOR
-/*
-select * from sys.database_permissions
-select * from sys.objects
-select * from sys.database_principals
-*/
 SELECT *
-from ##grant_users
+from ##grant_obj_users
 
 OPEN _grant_objprivs FETCH NEXT FROM _grant_objprivs INTO @ObjState,@ObjType,@ObjSchema,@ObjName, @ObjGrantee,@ObjWG
 WHILE @@FETCH_STATUS = 0
@@ -383,6 +481,9 @@ BEGIN
 			SET @ObjWG = ''
 		END
 	END
+--SET @msgStatement = 'USE [' + @DBname + ']'
+--PRINT @msgStatement
+--PRINT 'GO'
 SET @msgStatement = @ObjState +' ' + @ObjType +' ON ' + @ObjSchema + '.'+ @ObjName + ' TO ' + @ObjGrantee + ' ' + @ObjWG
 PRINT @msgStatement
 FETCH NEXT FROM _grant_objprivs INTO @ObjState,@ObjType,@ObjSchema,@ObjName, @ObjGrantee,@ObjWG
@@ -390,7 +491,7 @@ END
 CLOSE _grant_objprivs
 DEALLOCATE _grant_objprivs --cleanup cursor
 
-drop table ##grant_users
+drop table ##grant_obj_users
 drop table ##users
 
 
