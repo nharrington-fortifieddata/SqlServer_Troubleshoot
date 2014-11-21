@@ -4,7 +4,7 @@ DECLARE
 @errStatement [varchar](8000),
 @msgStatement [varchar](8000),
 @DatabaseUserName [sysname],
-@dbname as sysname,
+@DBname [sysname],
 @ServerUserName [sysname],
 @DefaultSchema [varchar] (256),
 @RoleName [varchar](256),
@@ -148,6 +148,14 @@ on a.LoginName = b.[name] COLLATE LATIN1_General_CI_AI
 where LoginName = @User_Build
 order by DBname
 
+/*
+SELECT a.LoginName, DBname, Username, ISNULL (b.[default_schema_name],'') as schema_name 
+FROM   ##users a LEFT OUTER JOIN [sys].[database_principals] b
+on a.LoginName = b.[name] COLLATE LATIN1_General_CI_AI 
+where LoginName = 'ph'
+order by DBname
+*/
+
 OPEN _users FETCH NEXT FROM _users INTO @DatabaseUserName, @DBname, @ServerUserName, @DefaultSchema
 WHILE @@FETCH_STATUS = 0
 BEGIN
@@ -167,6 +175,44 @@ PRINT 'GO'
 SET @msgStatement = 'CREATE USER ['        ---example: CREATE USER [mlapenna] FOR LOGIN [mlapenna]
  + @DatabaseUserName + ']' + ' FOR LOGIN [' + @ServerUserName + ']' + @DefaultSchema
 PRINT @msgStatement
+
+CREATE TABLE ##roles (
+    RoleName nvarchar(max))
+
+SET @query = N'select b.[NAME] 
+from ' + @DBname + '.[sys].[database_principals] a
+inner join ' + @DBname + '.sys.database_role_members d on  a.principal_id=d.role_principal_id
+INNER JOIN ' + @DBname + '.sys.database_principals  b on d.member_principal_id=b.principal_id
+where    b.name <> ''dbo'' and b.name =  '+ '''' + @User_Build + '''
+and a.type=''R'' and a.is_fixed_role != 1 and b.name not like ''public'''
+						    
+INSERT INTO ##roles Exec (@query)
+
+DECLARE _roles
+CURSOR LOCAL FORWARD_ONLY READ_ONLY 
+FOR
+SELECT *
+from ##roles
+
+OPEN _roles FETCH NEXT FROM _roles INTO @RoleName
+WHILE @@FETCH_STATUS=0
+BEGIN
+--SET @msgStatement = 'USE [' + @DBname + ']'
+--PRINT @msgStatement
+--PRINT 'GO'
+SET @msgStatement ='if not exists(SELECT 1 from sys.database_principals where type=''R'' and name ='''
++@RoleName+''' ) '+ CHAR(13) +
+'BEGIN '+ CHAR(13) +
+'CREATE ROLE  ['+ @RoleName + ']'+CHAR(13) +
+'END'
+PRINT @msgStatement
+FETCH NEXT FROM _roles INTO @RoleName
+END
+
+CLOSE _roles
+DEALLOCATE _roles --cleanup cursor
+drop table ##roles
+
 FETCH NEXT FROM _users INTO @DatabaseUserName, @DBname, @ServerUserName, @DefaultSchema
 END
 CLOSE _users 
@@ -175,6 +221,7 @@ DEALLOCATE _users --cleanup cursor
 --Script CREATE Database Roles for current database
 PRINT ' '
 PRINT '-- CREATE DB ROLES'
+/*
 CREATE TABLE ##roles (
     RoleName nvarchar(max))
 
@@ -229,7 +276,7 @@ END
 CLOSE _roles
 DEALLOCATE _roles --cleanup cursor
 drop table ##roles
-
+*/
 -- Script to Add Role Members to Users for current database
 PRINT ' '
 PRINT '-- ADD ROLE MEMBERS'
@@ -252,7 +299,7 @@ BEGIN
 --SET @msgStatement = 'USE [' + @DBname + ']'
 --PRINT @msgStatement
 --PRINT 'GO'
-SET @query = N'SELECT a.name , b.name 
+SET @query = N'SELECT a.name , b.name
 from ' + @DBname + '.sys.database_role_members d 
 INNER JOIN ' + @DBname + '.sys.database_principals  a on  d.role_principal_id=a.principal_id 
 INNER JOIN ' + @DBname + '.sys.database_principals  b on d.member_principal_id=b.principal_id
@@ -260,6 +307,13 @@ where    b.name <> ''dbo'' and b.name = '+ '''' + @User_Build + '''
 order by 1,2'
 						    
 INSERT INTO ##role_membrs Exec (@query)
+
+select @query
+select @dbname, * from ##role_membrs
+
+--SET @msgStatement = 'USE [' + @DBname + ']'
+--PRINT @msgStatement
+--PRINT 'GO'
 
 FETCH NEXT FROM _users INTO @DBname
 END
@@ -275,6 +329,11 @@ from ##role_membrs
 OPEN _role_members FETCH NEXT FROM _role_members INTO @RoleName, @MemberName
 WHILE @@FETCH_STATUS = 0
 BEGIN
+
+SET @msgStatement = 'USE [' + @DBname + ']'
+PRINT @msgStatement
+PRINT 'GO'
+
 SET @msgStatement = 'EXEC [sp_addrolemember] ' + '@rolename = [' + @RoleName + '], ' + '@membername = [' + @MemberName + ']'
 PRINT @msgStatement
 FETCH NEXT FROM _role_members INTO @RoleName, @MemberName
@@ -282,7 +341,7 @@ END
 
 CLOSE _role_members 
 DEALLOCATE _role_members --cleanup cursor
-drop table ##role_membrs
+--drop table ##role_membrs
 
 -- Script GRANTS for Database Privileges on current database
 PRINT ' '
@@ -481,9 +540,9 @@ BEGIN
 			SET @ObjWG = ''
 		END
 	END
---SET @msgStatement = 'USE [' + @DBname + ']'
---PRINT @msgStatement
---PRINT 'GO'
+SET @msgStatement = 'USE [' + @DBname + ']'
+PRINT @msgStatement
+PRINT 'GO'
 SET @msgStatement = @ObjState +' ' + @ObjType +' ON ' + @ObjSchema + '.'+ @ObjName + ' TO ' + @ObjGrantee + ' ' + @ObjWG
 PRINT @msgStatement
 FETCH NEXT FROM _grant_objprivs INTO @ObjState,@ObjType,@ObjSchema,@ObjName, @ObjGrantee,@ObjWG
