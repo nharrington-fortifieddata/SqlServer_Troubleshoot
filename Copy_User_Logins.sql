@@ -1,9 +1,10 @@
 SET NOCOUNT ON
 DECLARE
+@User_Build [varchar] (256),
 @errStatement [varchar](8000),
 @msgStatement [varchar](8000),
 @DatabaseUserName [sysname],
-@ServerUserName [sysname],
+@ServerLogin [sysname],
 @DefaultSchema [varchar] (256),
 @RoleName [varchar](256),
 @MemberName [varchar](256),
@@ -132,7 +133,7 @@ END
 
 CLOSE _logins 
 DEALLOCATE _logins --cleanup cursor
-DROP TABLE ##users
+
 
 --Script CREATE USERS for current database
 PRINT ' '
@@ -146,7 +147,7 @@ from [sys].[database_principals] INNER JOIN [master].[sys].[server_principals]
 on [sys].[database_principals].[name]=[master].[sys].[server_principals].[name] COLLATE LATIN1_General_CI_AI
 where [master].[sys].[server_principals].[type] in ('U', 'G', 'S')
 
-OPEN _users FETCH NEXT FROM _users INTO @ServerUserName, @DatabaseUserName, @DefaultSchema
+OPEN _users FETCH NEXT FROM _users INTO @ServerLogin, @DatabaseUserName, @DefaultSchema
 WHILE @@FETCH_STATUS = 0
 BEGIN
 	BEGIN
@@ -160,13 +161,55 @@ BEGIN
 		END
 	END
 SET @msgStatement = 'CREATE USER ['        ---example: CREATE USER [mlapenna] FOR LOGIN [mlapenna]
- + @DatabaseUserName + ']' + ' FOR LOGIN [' + @ServerUserName + ']' + @DefaultSchema
+ + @DatabaseUserName + ']' + ' FOR LOGIN [' + @ServerLogin + ']' + @DefaultSchema
 PRINT @msgStatement
-FETCH NEXT FROM _users INTO @ServerUserName, @DatabaseUserName, @DefaultSchema
+FETCH NEXT FROM _users INTO @ServerLogin, @DatabaseUserName, @DefaultSchema
 END
 
 CLOSE _users 
 DEALLOCATE _users --cleanup cursor
+
+--Script MAP SERVER ROLE for current database
+PRINT ' '
+PRINT '-- ADD SERVER ROLE MEMBERS'
+CREATE TABLE ##srvrole_membrs (
+    ServerLogin nvarchar (max),
+    RoleName nvarchar(max))
+
+SET @query = N'SELECT a.name , b.name
+from sys.server_principals a
+JOIN sys.server_role_members  d on a.principal_id=d.member_principal_id
+LEFT JOIN sys.server_principals  b on d.role_principal_id=b.principal_id
+right join ##users c on a.name=c.login_name collate Latin1_General_CI_AI
+order by 1,2'
+						    
+delete from ##srvrole_membrs						    
+INSERT INTO ##srvrole_membrs Exec (@query)
+
+DECLARE _role_members
+CURSOR LOCAL FORWARD_ONLY READ_ONLY
+FOR 
+SELECT *
+from ##srvrole_membrs
+ 
+OPEN _role_members FETCH NEXT FROM _role_members INTO @ServerLogin,@RoleName
+WHILE @@FETCH_STATUS = 0
+BEGIN
+
+SET @msgStatement = 'USE Master'
+PRINT @msgStatement
+PRINT 'GO'
+
+SET @msgStatement = 'EXEC [sp_addsrvrolemember] ' + '@loginame = [' + @ServerLogin + '], ' + '@rolename = [' + @RoleName + ']'
+PRINT @msgStatement
+FETCH NEXT FROM _role_members INTO @ServerLogin,@RoleName
+END
+
+CLOSE _role_members 
+DEALLOCATE _role_members --cleanup cursor
+drop table ##srvrole_membrs
+DROP TABLE ##users
+
 
 --Script CREATE Database Roles for current database
 PRINT ' '
@@ -189,6 +232,46 @@ END
 
 CLOSE _roles
 DEALLOCATE _roles --cleanup cursor
+
+-- Script GRANTS for Database Role Privileges on current database
+PRINT ' '
+PRINT '-- GRANTS for Database Roles'
+DECLARE _grant_dbrprivs
+CURSOR LOCAL FORWARD_ONLY READ_ONLY
+FOR 
+SELECT a.state, permission_name, c.name, d.name, b.name COLLATE LATIN1_General_CI_AI
+FROM sys.database_permissions  a 
+LEFT JOIN [sys].[objects] d ON a.[major_id] = d.[object_id]
+LEFT JOIN [sys].[database_principals] b ON a.[grantee_principal_id] = b.[principal_id]
+LEFT JOIN [sys].[database_principals] c ON a.[grantor_principal_id] = c.[principal_id]
+where b.name = 'testing'
+
+OPEN _grant_dbrprivs FETCH NEXT FROM _grant_dbrprivs INTO @PrivState,@PrivType,@ObjSchema,@PrivWG, @SchGrantee
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	BEGIN
+	If (@PrivWG = 'W')
+		BEGIN
+			SET @PrivWG = 'WITH GRANT OPTION'
+			SET @PrivState = 'GRANT'
+		END
+	ELSE
+		BEGIN
+			SET @PrivWG = ''
+		END
+	END
+	BEGIN
+	If (@ObjName IS NOT NULL)
+		SET @msgStatement = @PrivState +' ' + @PrivType +' ON  '+ @ObjSchema + '.'+ @ObjName +' TO ' + @SchGrantee + ' ' + @PrivWG
+	ELSE
+		SET @msgStatement = @PrivState +' ' + @PrivType +' TO ' + @SchGrantee + ' ' + @SchWG
+	END
+PRINT @msgStatement
+FETCH NEXT FROM _grant_dbrprivs INTO @PrivState,@PrivType,@ObjSchema,@PrivWG, @SchGrantee
+END
+
+CLOSE _grant_dbrprivs
+DEALLOCATE _grant_dbrprivs --cleanup cursor
 
 -- Script to Add Role Members to Users for current database
 PRINT ' '
