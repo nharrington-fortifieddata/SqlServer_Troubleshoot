@@ -5,10 +5,10 @@
 		"factoryName": {
 			"value": "NLHDF"
 		},
-		"AzureSqlDatabase1_connectionString": {
+		"AzureDataLakeStorage1_accountKey": {
 			"value": ""
 		},
-		"AzureDataLakeStorage1_accountKey": {
+		"AzureSqlDatabase1_connectionString": {
 			"value": ""
 		},
 		"AzureSynapseAnalytics1_connectionString": {
