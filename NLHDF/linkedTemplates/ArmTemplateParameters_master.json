@@ -5,6 +5,9 @@
 		"factoryName": {
 			"value": "NLHDF"
 		},
+		"ADLSGen2_accountKey": {
+			"value": ""
+		},
 		"AzureDataLakeStorage1_accountKey": {
 			"value": ""
 		},
@@ -13,6 +16,9 @@
 		},
 		"AzureSynapseAnalytics1_connectionString": {
 			"value": ""
+		},
+		"ADLSGen2_properties_typeProperties_url": {
+			"value": "https://nlhstores.dfs.core.windows.net"
 		},
 		"AzureDataLakeStorage1_properties_typeProperties_url": {
 			"value": "https://nlhstores.dfs.core.windows.net"
