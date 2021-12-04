@@ -7,7 +7,17 @@
 		},
 		"annotations": [],
 		"type": "AzureSqlDWTable",
-		"schema": [],
+		"schema": [
+			{
+				"name": "payment_type",
+				"type": "nvarchar"
+			},
+			{
+				"name": "average_fare",
+				"type": "float",
+				"precision": 15
+			}
+		],
 		"typeProperties": {
 			"schema": "dbo",
 			"table": "AggregateTaxiData"
