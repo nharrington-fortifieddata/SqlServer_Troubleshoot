@@ -1,0 +1,9 @@
+{
+	"name": "NLHDF",
+	"location": "eastus",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "04b362dd-1fd1-4edb-9ce8-59441f85ac2d",
+		"tenantId": "e233a4a9-a827-4f56-9a43-e49a88e1ea15"
+	}
+}
