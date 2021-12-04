@@ -1,0 +1,8 @@
+{
+	"name": "TripData",
+	"properties": {
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": []
+	}
+}
