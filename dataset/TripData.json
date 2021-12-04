@@ -1,8 +1,73 @@
 {
 	"name": "TripData",
 	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureSqlDatabase1",
+			"type": "LinkedServiceReference"
+		},
 		"annotations": [],
 		"type": "AzureSqlTable",
-		"schema": []
+		"schema": [
+			{
+				"name": "medallion",
+				"type": "nvarchar"
+			},
+			{
+				"name": "hack_license",
+				"type": "nvarchar"
+			},
+			{
+				"name": "vendor_id",
+				"type": "nvarchar"
+			},
+			{
+				"name": "rate_code",
+				"type": "nvarchar"
+			},
+			{
+				"name": "store_and_fwd_flag",
+				"type": "nvarchar"
+			},
+			{
+				"name": "pickup_datetime",
+				"type": "nvarchar"
+			},
+			{
+				"name": "dropoff_datetime",
+				"type": "nvarchar"
+			},
+			{
+				"name": "passenger_count",
+				"type": "nvarchar"
+			},
+			{
+				"name": "trip_time_in_secs",
+				"type": "nvarchar"
+			},
+			{
+				"name": "trip_distance",
+				"type": "nvarchar"
+			},
+			{
+				"name": "pickup_longitude",
+				"type": "nvarchar"
+			},
+			{
+				"name": "pickup_latitude",
+				"type": "nvarchar"
+			},
+			{
+				"name": "dropoff_longitude",
+				"type": "nvarchar"
+			},
+			{
+				"name": "dropoff_latitude",
+				"type": "nvarchar"
+			}
+		],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "TripData"
+		}
 	}
 }
